@@ -1,0 +1,317 @@
+const express = require("express");
+const router = express.Router();
+const Cart = require("../models/cart");
+const { Product } = require("../models/product");
+const { User } = require("../models/user");
+
+// POST - Add item to cart
+router.post('/', async (req, res) => {
+  const { familyId, productId, userId, quantity = 1 } = req.body;
+
+  try {
+    // Validate required fields
+    if (!familyId || !productId || !userId) {
+      return res.status(400).json({  message: "جميع الحقول مطلوبة (familyId, productId, userId)" });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    // Check if family exists
+    const family = await User.findById(familyId);
+    if (!family || family.type !== 'family') {
+      return res.status(404).json({ message: "العائلة غير موجودة" });
+    }
+
+    // Check if product exists
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: "المنتج غير موجود" });
+    }
+
+    // Check if item already exists in cart
+    let cartItem = await Cart.findOne({ familyId, productId, userId });
+
+    if (cartItem) {
+      // Update quantity if item exists
+      cartItem.quantity += parseInt(quantity);
+      cartItem = await cartItem.save();
+    } else {
+      // Create new cart item
+      cartItem = new Cart({
+        familyId,
+        productId,
+        userId,
+        quantity: parseInt(quantity),
+      });
+      cartItem = await cartItem.save();
+    }
+
+    // Populate the cart item
+    const populatedCartItem = await Cart.findById(cartItem._id);
+
+    res.status(201).json({
+      message: "تم إضافة المنتج إلى السلة بنجاح",
+      cartItem: populatedCartItem
+    });
+
+  } catch (error) {
+    console.error("Error adding to cart:", error);
+    
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "المنتج موجود بالفعل في السلة" });
+    }
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "تنسيق المعرف غير صحيح" });
+    }
+    
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
+
+// GET - Get cart items grouped by family
+router.get('/', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    // Build query
+    let query = {};
+    if (userId) {
+      query.userId = userId;
+    }
+
+    // Get all cart items with populated data
+    const cartItems = await Cart.find(query)
+      .populate('familyId', 'userName email type phoneNumber')
+      .populate('productId', 'name price image description discount count_in_stock')
+      .populate('userId', 'userName email')
+      .sort({ createdAt: -1 });
+
+    // Group cart items by family
+    const groupedByFamily = cartItems.reduce((acc, item) => {
+      const familyId = item.familyId._id.toString();
+      
+      if (!acc[familyId]) {
+        acc[familyId] = {
+          family: {
+            id: item.familyId._id,
+            userName: item.familyId.userName,
+            email: item.familyId.email,
+            type: item.familyId.type,
+            phoneNumber: item.familyId.phoneNumber
+          },
+          products: [],
+          totalItems: 0,
+          totalPrice: 0
+        };
+      }
+
+      const price = item.productId.price;
+      const discountPercent = item.productId.discount || 0;
+      const priceAfterDiscount = price * (1 - discountPercent / 100);
+      const itemTotal = priceAfterDiscount * item.quantity;
+
+      acc[familyId].products.push({
+        cartId: item._id,
+        product: item.productId,
+        user: item.userId,
+        quantity: item.quantity,
+        priceAfterDiscount: priceAfterDiscount,
+        itemTotal: itemTotal,
+        addedAt: item.createdAt
+      });
+
+      acc[familyId].totalItems += item.quantity;
+      acc[familyId].totalPrice += itemTotal;
+
+      return acc;
+    }, {});
+
+    // Convert to array format
+    const familiesWithProducts = Object.values(groupedByFamily);
+
+    res.status(200).json({
+      totalFamilies: familiesWithProducts.length,
+      totalCartItems: cartItems.length,
+      families: familiesWithProducts
+    });
+
+  } catch (error) {
+    console.error("Error getting cart items:", error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "تنسيق المعرف غير صحيح" });
+    }
+    
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
+
+// GET - Get cart items for specific family
+router.get('/family/:familyId', async (req, res) => {
+  try {
+    const { familyId } = req.params;
+    const { userId } = req.query;
+
+    // Build query
+    let query = { familyId };
+    if (userId) {
+      query.userId = userId;
+    }
+
+    // Check if family exists
+    const family = await User.findById(familyId);
+    if (!family || family.type !== 'family') {
+      return res.status(404).json({ message: "العائلة غير موجودة" });
+    }
+
+    const cartItems = await Cart.find(query)
+      .populate('familyId', 'userName email type phoneNumber')
+      .populate('productId', 'name price image description discount count_in_stock')
+      .populate('userId', 'userName email')
+      .sort({ createdAt: -1 });
+
+    let totalPrice = 0;
+    let totalItems = 0;
+
+    const productsWithDetails = cartItems.map(item => {
+      const price = item.productId.price;
+      const discountPercent = item.productId.discount || 0;
+
+      // ✅ حساب السعر بعد الخصم كنسبة مئوية
+      const priceAfterDiscount = price * (1 - discountPercent / 100);
+      const itemTotal = priceAfterDiscount * item.quantity;
+
+      totalPrice += itemTotal;
+      totalItems += item.quantity;
+
+      return {
+        cartId: item._id,
+        product: item.productId,
+        user: item.userId,
+        quantity: item.quantity,
+        priceAfterDiscount: priceAfterDiscount,
+        itemTotal: itemTotal,
+        addedAt: item.createdAt
+      };
+    });
+
+    res.status(200).json({
+      family: {
+        id: family._id,
+        userName: family.userName,
+        email: family.email,
+        type: family.type,
+        phoneNumber: family.phoneNumber
+      },
+      totalItems: totalItems,
+      totalPrice: totalPrice,
+      products: productsWithDetails
+    });
+
+  } catch (error) {
+    console.error("Error getting family cart:", error);
+
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "تنسيق معرف العائلة غير صحيح" });
+    }
+
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
+
+
+// PUT - Update cart item quantity
+router.put('/update/:cartId', async (req, res) => {
+  try {
+    const { cartId } = req.params;
+    const { quantity } = req.body;
+
+    if (!quantity || quantity < 1) {
+      return res.status(400).json({ message: "الكمية يجب أن تكون أكبر من صفر" });
+    }
+
+    const cartItem = await Cart.findById(cartId);
+    if (!cartItem) {
+      return res.status(404).json({ message: "عنصر السلة غير موجود" });
+    }
+
+    const updatedCartItem = await Cart.findByIdAndUpdate(  cartId,  { quantity: parseInt(quantity) },  { new: true } )
+      .populate('familyId', 'userName email type')
+      .populate('productId', 'name price image description discount')
+      .populate('userId', 'userName email');
+
+    res.status(200).json({ message: "تم تحديث الكمية بنجاح",  cartItem: updatedCartItem });
+
+  } catch (error) {
+    console.error("Error updating cart item:", error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "تنسيق المعرف غير صحيح" });
+    }
+    
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
+
+// DELETE - Remove item from cart
+router.delete('/remove/:cartId', async (req, res) => {
+  try {
+    const { cartId } = req.params;
+
+    const cartItem = await Cart.findById(cartId);
+    if (!cartItem) {
+      return res.status(404).json({ message: "عنصر السلة غير موجود" });
+    }
+
+    await Cart.findByIdAndDelete(cartId);
+
+    res.status(200).json({
+      message: "تم حذف المنتج من السلة بنجاح",
+      deletedItem: {
+        id: cartItem._id,
+        familyId: cartItem.familyId,
+        productId: cartItem.productId,
+        userId: cartItem.userId
+      }
+    });
+
+  } catch (error) {
+    console.error("Error removing cart item:", error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "تنسيق المعرف غير صحيح" });
+    }
+    
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
+
+// DELETE - Clear user's cart
+router.delete('/clear/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const result = await Cart.deleteMany({ userId });
+
+    res.status(200).json({
+      message: "تم مسح السلة بنجاح",
+      deletedCount: result.deletedCount
+    });
+
+  } catch (error) {
+    console.error("Error clearing cart:", error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "تنسيق معرف المستخدم غير صحيح" });
+    }
+    
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
+
+module.exports = router;
