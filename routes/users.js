@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const { postImageLocatianSpecify, whichUpload } = require("../imageStorage");
 const cloudinary = require("../utils/cloudinary");
+const fs = require('fs');
 const bcrypt = require("bcryptjs");
 const {  body , validationResult  } = require("express-validator");
 
@@ -131,8 +132,6 @@ router.post(
         return res.status(400).json({ message: "اسم المستخدم موجود من قبل" });
       }
 
-      const imagePath = req.file ? postImageLocatianSpecify(req) : "";
-
       let newUser = new User({
         userName: req.body.userName.trim(),
         email: req.body.email.trim(),
@@ -144,7 +143,7 @@ router.post(
         location: req.body.location || "",
         type: req.body.type,
         status: req.body.status !== undefined ? req.body.status : true,
-        image: imagePath
+        image: "https://semantic-ui.com/images/wireframe/image.png"
       });
 
       newUser = await newUser.save();
@@ -188,6 +187,8 @@ router.post("/login", async (req, res) => {
 
 });
 
+
+
 router.put("/:id", whichUpload.single("image"), async (req, res) => {
   try {
     const userId = req.params.id;
@@ -197,27 +198,40 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
       return res.status(404).json({ message: "المستخدم غير موجود" });
     }
 
+    // التحقق من البريد الإلكتروني
     if (req.body.email) {
-      const emailExists = await User.findOne({   email: req.body.email.trim().toLowerCase(),  _id: { $ne: userId }  });
+      const emailExists = await User.findOne({
+        email: req.body.email.trim().toLowerCase(),
+        _id: { $ne: userId },
+      });
       if (emailExists) {
         return res.status(400).json({ message: "هذا البريد الإلكتروني مستخدم من قبل" });
       }
     }
 
+    // التحقق من رقم الهاتف
     if (req.body.phoneNumber) {
-      const phoneExists = await User.findOne({   phoneNumber: req.body.phoneNumber.trim(),  _id: { $ne: userId }  });
+      const phoneExists = await User.findOne({
+        phoneNumber: req.body.phoneNumber.trim(),
+        _id: { $ne: userId },
+      });
       if (phoneExists) {
         return res.status(400).json({ message: "هذا الرقم موجود من قبل" });
       }
     }
 
+    // التحقق من اسم المستخدم
     if (req.body.userName) {
-      const usernameExists = await User.findOne({   userName: req.body.userName.trim(),  _id: { $ne: userId }  });
+      const usernameExists = await User.findOne({
+        userName: req.body.userName.trim(),
+        _id: { $ne: userId },
+      });
       if (usernameExists) {
         return res.status(400).json({ message: "اسم المستخدم موجود من قبل" });
       }
     }
 
+    // تحضير بيانات التحديث
     const updateData = {
       userName: req.body.userName?.trim(),
       email: req.body.email?.trim().toLowerCase(),
@@ -239,26 +253,25 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
         await cloudinary.uploader.destroy(existingUser.imagePublicId);
       }
 
-      const { imageUrl, publicId } = postImageLocatianSpecify(req);
+      const result = await cloudinary.uploader.upload(req.file.path, {  folder: "user_images",  });
 
-      updateData.image = imageUrl;
-      updateData.imagePublicId = publicId;
+      updateData.image = result.secure_url;
+      updateData.imagePublicId = result.public_id;
     }
 
-    Object.keys(updateData).forEach(key => {  if (updateData[key] === undefined) delete updateData[key];  });
+    Object.keys(updateData).forEach((key) => {  if (updateData[key] === undefined) {  delete updateData[key];  }  });
 
-    const updatedUser = await User.findByIdAndUpdate(  userId,  updateData,  { new: true, runValidators: true }  ).select("-password");
+    const updatedUser = await User.findByIdAndUpdate(userId, updateData, {  new: true,  runValidators: true, }).select("-password");
 
     if (!updatedUser) {
       return res.status(500).json({ message: "لا يمكن تحديث المستخدم" });
     }
 
     return res.status(200).json({ message: "تم تحديث بيانات المستخدم", data: updatedUser });
-
   } catch (error) {
     console.error("Error updating user:", error);
 
-    if (error.name === 'CastError') {
+    if (error.name === "CastError") {
       return res.status(400).json({ message: "تنسيق معرف المستخدم غير صحيح" });
     }
 
@@ -267,16 +280,18 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
       return res.status(400).json({ message: `هذا ${field} موجود من قبل` });
     }
 
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        message: "خطأ في التحقق من البيانات", 
-        errors: Object.values(error.errors).map(e => e.message) 
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        message: "خطأ في التحقق من البيانات",
+        errors: Object.values(error.errors).map((e) => e.message),
       });
     }
 
     return res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
 });
+
+
 
 // DELETE user (optional - for completeness)
 router.delete("/:id", async (req, res) => {

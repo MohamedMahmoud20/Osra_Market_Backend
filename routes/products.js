@@ -4,11 +4,8 @@ const { Comment } = require("../models/comment");
 const cloudinary = require("../utils/cloudinary");
 const express = require("express");
 const router = express.Router();
-const {
-  body,
-  validationResult,
-} = require("express-validator");
-const { postImageLocatianSpecify, whichUpload } = require("../imageStorage");
+const {  body,  validationResult, } = require("express-validator");
+const { whichUpload } = require("../imageStorage");
 
 const validate = (validations) => {
   return async (req, res, next) => {
@@ -96,6 +93,7 @@ router.get(`/:id`, async (req, res) => {
   }
 });
 
+
 // POST - إنشاء منتج جديد مع رفع الصورة
 router.post(`/`, whichUpload.single("image"), async (req, res) => {
   try {
@@ -103,23 +101,22 @@ router.post(`/`, whichUpload.single("image"), async (req, res) => {
 
     const family = await User.findById(familyId);
     if (!family) {
-      return res.status(400).send("العائلة المحددة غير موجودة");
+      return res.status(400).json({message: "العائلة المحددة غير موجودة"});
     }
 
     if (family.type !== "family") {
-      return res.status(400).send("المعرف المحدد ليس لعائلة");
+      return res.status(400).json({message :"المعرف المحدد ليس لعائلة"});
     }
 
     const existingProduct = await Product.findOne({  name: name.trim(),  familyId: familyId,  });
 
     if (existingProduct) {
-      return res.status(400).send("اسم المنتج موجود بالفعل لدى هذه العائلة");
+      return res.status(400).json({message: "اسم المنتج موجود بالفعل لدى هذه العائلة"});
     }
 
     let imagePath = null;
     if (req.file) {
       const result = await cloudinary.uploader.upload(req.file.path, {  folder: "product_images",  });
-      fs.unlinkSync(req.file.path); 
 
       imagePath = {
         url: result.secure_url,
@@ -129,10 +126,11 @@ router.post(`/`, whichUpload.single("image"), async (req, res) => {
 
     let newProduct = new Product({
       name: name.trim(),
-      image: imagePath,
+      image: imagePath ? imagePath.url : "https://semantic-ui.com/images/wireframe/image.png",
+      imagePublicId: imagePath ? imagePath.publicId : "",
       description: description?.trim(),
       price: parseFloat(price),
-      stock_limit: stock_limit || false,
+      stock_limit: Boolean(stock_limit) || false,
       count_in_stock: parseInt(count_in_stock) || 0,
       discount: parseFloat(discount) || 0,
       familyId: familyId,
@@ -167,6 +165,7 @@ router.post(`/`, whichUpload.single("image"), async (req, res) => {
 });
 
 
+
 // PUT - تحديث منتج مع إمكانية تغيير الصورة
 router.put("/:id", whichUpload.single("image"), async (req, res) => {
   try {
@@ -197,7 +196,6 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
       }
     }
 
-    // إعداد كائن التحديث
     const updateData = {
       name: name?.trim(),
       description: description?.trim(),
@@ -208,21 +206,15 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
       familyId: familyId,
       status: status,
     };
-
+  
     if (req.file) {
+  if (existingProduct.imagePublicId) {
+    await cloudinary.uploader.destroy(existingProduct.imagePublicId);
+  }
 
-      if (existingProduct.image?.publicId) {
-        await cloudinary.uploader.destroy(existingProduct.image.publicId);
-      }
-
-      const result = await cloudinary.uploader.upload(req.file.path, {  folder: "product_images",  });
-      fs.unlinkSync(req.file.path);
-
-      updateData.image = {
-        url: result.secure_url,
-        publicId: result.public_id,
-      };
-    }
+   updateData.image = req.file.path || req.file.url;
+   updateData.imagePublicId = req.file.filename || req.file.public_id;
+}
 
     Object.keys(updateData).forEach((key) => {  if (updateData[key] === undefined) {  delete updateData[key];  }  });
 
@@ -233,6 +225,7 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
     }
 
     return res.status(200).send(updatedProduct);
+
   } catch (error) {
     console.error("خطأ في تحديث المنتج:", error);
 
@@ -251,8 +244,6 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
     res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
 });
-
-
 
 
 // POST - Add comment to product
