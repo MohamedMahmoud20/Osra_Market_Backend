@@ -171,7 +171,7 @@ router.post("/login", async (req, res) => {
     try {
 
         const { email, password } = req.body;
-        let userFound = await User.findOne({ where: { email: email } });
+        let userFound = await User.findOne( { email: email });
         if (!userFound) { return res.status(400).send({ message: "الريد الالكتروني غير مسجل بالنظام" }); }
     
 

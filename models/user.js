@@ -22,6 +22,10 @@ const userSchema = mongoose.Schema(
       type: String,
       default: "",
     },
+     bankAccountNumber: {
+      type: String,
+      default: "",
+    },
     countryCode: {
       type: String,
       required: true,
