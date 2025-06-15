@@ -4,65 +4,46 @@ const { Comment } = require("../models/comment");
 const cloudinary = require("../utils/cloudinary");
 const express = require("express");
 const router = express.Router();
-const {  body,  validationResult, } = require("express-validator");
 const { whichUpload } = require("../imageStorage");
 
-const validate = (validations) => {
-  return async (req, res, next) => {
-    for (let validation of validations) {
-      const result = await validation.run(req);
-      if (result.errors.length) break;
-    }
-    const errors = validationResult(req);
-    if (errors.isEmpty()) {  return next();  }
-
-    res.status(400).json({ errors: errors.array() });
-  };
-};
 
 // GET - الحصول على جميع المنتجات مع التصفية والترقيم
 router.get(`/`, async (req, res) => {
   try {
-    const { familyId, name, page, limit } = req.query;
+    const { familyId, name } = req.query;
     let filter = {};
     
     if (familyId) {
+      const family = await User.findById(familyId);
+      if (!family) {
+        return res.status(404).json({   success: false,   message: "العائلة غير موجودة"   });
+      }
+      
+      if (family.status === false) {
+        return res.status(200).json({ num_of_pages: 0,  total_count: 0,  data: []  });
+      }
+      
       filter.familyId = familyId;
     }
     
     if (name) {
       filter.name = { $regex: name, $options: 'i' };
     }
-    
-    const pageNumber = parseInt(page);
-    const limitNumber = parseInt(limit) || 10;
-    const skip = (pageNumber - 1) * limitNumber;
-    const productListLength = (await Product.find(filter)).length;
-
+  
     let productList;
-    if (pageNumber) {
-      productList = await Product.find(filter).populate(
-         [{ path: 'familyId', select: 'userName email type phoneNumber image' },{ path: 'comments', populate: { path: 'user', select: 'userName email' } }] 
-    ).skip(skip).limit(limitNumber).sort({ createdAt: -1 });
-    } else {
-      productList = await Product.find(filter).populate(
-         [{ path: 'familyId', select: 'userName email type phoneNumber image' },{ path: 'comments', populate: { path: 'user', select: 'userName email' } }] 
-    ).sort({ createdAt: -1 });
-    }
+   
+      productList = await Product.find(filter).populate([
+        { path: 'familyId', select: 'userName email type phoneNumber status image ' },
+        { path: 'comments', populate: { path: 'user', select: 'userName email' } }  ]).sort({ createdAt: -1 });
+    
 
     if (!productList) {
       return res.status(500).json({ success: false });
     }
 
-    if (pageNumber) {
-      res.status(200).json({
-        num_of_pages: Math.ceil(productListLength / limitNumber),
-        total_count: productListLength,
-        data: productList
-      });
-    } else {
-      res.status(200).send(productList);
-    }
+    const activeProductList = productList.filter(product => {  return product.familyId && product.familyId.status !== false;  });
+
+    res.status(200).send(activeProductList);
 
   } catch (error) {
     console.error("خطأ في جلب المنتجات:", error);

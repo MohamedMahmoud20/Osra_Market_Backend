@@ -132,6 +132,16 @@ router.post(
         return res.status(400).json({ message: "اسم المستخدم موجود من قبل" });
       }
 
+    let imagePath = null;
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {  folder: "product_images",  });
+
+      imagePath = {
+        url: result.secure_url,
+        publicId: result.public_id,
+      };
+    }
+    
       let newUser = new User({
         userName: req.body.userName.trim(),
         email: req.body.email.trim(),
@@ -143,7 +153,7 @@ router.post(
         location: req.body.location || "",
         type: req.body.type,
         status: req.body.status !== undefined ? req.body.status : true,
-        image: "https://semantic-ui.com/images/wireframe/image.png"
+        image: imagePath ? imagePath.url : "https://semantic-ui.com/images/wireframe/image.png",
       });
 
       newUser = await newUser.save();
