@@ -1,6 +1,7 @@
 const { Product } = require("../models/product");
 const { User } = require("../models/user");
 const { Comment } = require("../models/comment");
+const cloudinary = require("../utils/cloudinary");
 const express = require("express");
 const router = express.Router();
 const {
@@ -9,18 +10,14 @@ const {
 } = require("express-validator");
 const { postImageLocatianSpecify, whichUpload } = require("../imageStorage");
 
-// دالة التحقق من صحة البيانات
 const validate = (validations) => {
   return async (req, res, next) => {
     for (let validation of validations) {
       const result = await validation.run(req);
       if (result.errors.length) break;
     }
-
     const errors = validationResult(req);
-    if (errors.isEmpty()) {
-      return next();
-    }
+    if (errors.isEmpty()) {  return next();  }
 
     res.status(400).json({ errors: errors.array() });
   };
@@ -99,111 +96,101 @@ router.get(`/:id`, async (req, res) => {
   }
 });
 
+// POST - إنشاء منتج جديد مع رفع الصورة
+router.post(`/`, whichUpload.single("image"), async (req, res) => {
+  try {
+    const {  name,  description,  price,  familyId,  discount,  count_in_stock,  stock_limit,  status, } = req.body;
 
- // POST - إنشاء منتج جديد مع رفع الصورة
-router.post(`/`,  whichUpload.single('image'), async (req, res) => {
-    try {
-   
-        const { name , description , price , familyId , discount , count_in_stock,  stock_limit ,  status } = req.body;
-
-    //   // التحقق من وجود صورة مرفوعة
-    //   if (!req.file) {
-    //     return res.status(400).send("صورة المنتج مطلوبة");
-    //   }
-
-      // التحقق من وجود العائلة والتأكد من أنها من نوع family
-      const family = await User.findById(familyId);
-      if (!family) {
-        return res.status(400).send("العائلة المحددة غير موجودة");
-      }
-
-      if (family.type !== 'family') {
-        return res.status(400).send("المعرف المحدد ليس لعائلة");
-      }
-
-      // التحقق من عدم تكرار اسم المنتج لنفس العائلة
-      const existingProduct = await Product.findOne({   name: name.trim(), familyId: familyId  });
-
-      if (existingProduct) {
-        return res.status(400).send("اسم المنتج موجود بالفعل لدى هذه العائلة");
-      }
-
-      // الحصول على مسار الصورة باستخدام postImageLocatianSpecify
-      const imagePath = postImageLocatianSpecify(req);
-
-      // إنشاء كائن المنتج الجديد
-      let newProduct = new Product({
-        name: name.trim(),
-        image: imagePath,
-        description: description.trim(),
-        price: parseFloat(price),
-        stock_limit: stock_limit || false,
-        count_in_stock: parseInt(count_in_stock) || 0,
-        discount: parseFloat(discount) || 0,
-        familyId: familyId,
-      });
-
-      // حفظ المنتج
-      newProduct = await newProduct.save();
-
-      if (!newProduct) {
-        return res.status(400).send("لا يمكن إنشاء المنتج");
-      }
-      // إرجاع المنتج مع بيانات العائلة
-      const productResponse = await Product.findById(newProduct._id).populate('familyId', 'userName address type phoneNumber');
-
-      res.status(201).send(productResponse);
-
-    } catch (error) {
-
-      console.error("خطأ في إنشاء المنتج:", error);
-      if (error.code === 11000) {
-        return res.status(400).send("بيانات مكررة");
-      }
-      if (error.name === 'ValidationError') {
-        return res.status(400).json({
-          message: "خطأ في التحقق من البيانات",
-          errors: Object.values(error.errors).map(e => e.message)
-        });
-      }
-
-      res.status(500).json({ message: "خطأ داخلي في الخادم" });
+    const family = await User.findById(familyId);
+    if (!family) {
+      return res.status(400).send("العائلة المحددة غير موجودة");
     }
+
+    if (family.type !== "family") {
+      return res.status(400).send("المعرف المحدد ليس لعائلة");
+    }
+
+    const existingProduct = await Product.findOne({  name: name.trim(),  familyId: familyId,  });
+
+    if (existingProduct) {
+      return res.status(400).send("اسم المنتج موجود بالفعل لدى هذه العائلة");
+    }
+
+    let imagePath = null;
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {  folder: "product_images",  });
+      fs.unlinkSync(req.file.path); 
+
+      imagePath = {
+        url: result.secure_url,
+        publicId: result.public_id,
+      };
+    }
+
+    let newProduct = new Product({
+      name: name.trim(),
+      image: imagePath,
+      description: description?.trim(),
+      price: parseFloat(price),
+      stock_limit: stock_limit || false,
+      count_in_stock: parseInt(count_in_stock) || 0,
+      discount: parseFloat(discount) || 0,
+      familyId: familyId,
+      status: status ?? true,
+    });
+
+    newProduct = await newProduct.save();
+
+    if (!newProduct) {
+      return res.status(400).send("لا يمكن إنشاء المنتج");
+    }
+
+    const productResponse = await Product.findById(newProduct._id).populate(  "familyId",  "userName address type phoneNumber"  );
+
+    res.status(201).send(productResponse);
+  } catch (error) {
+    console.error("خطأ في إنشاء المنتج:", error);
+
+    if (error.code === 11000) {
+      return res.status(400).send("بيانات مكررة");
+    }
+
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        message: "خطأ في التحقق من البيانات",
+        errors: Object.values(error.errors).map((e) => e.message),
+      });
+    }
+
+    res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
-);
+});
+
 
 // PUT - تحديث منتج مع إمكانية تغيير الصورة
-router.put("/:id", whichUpload.single('image'), async (req, res) => {
+router.put("/:id", whichUpload.single("image"), async (req, res) => {
   try {
     const { id } = req.params;
-    const { name , description , price , familyId , discount , count_in_stock,  stock_limit ,  status } = req.body;
+    const {  name,  description,  price,  familyId,  discount,  count_in_stock,  stock_limit,  status,  } = req.body;
 
-
-    // التحقق من وجود المنتج
     const existingProduct = await Product.findById(id);
     if (!existingProduct) {
-      return res.status(404).json({ message: "المنتج غير موجود."  });
+      return res.status(404).json({ message: "المنتج غير موجود." });
     }
 
-    // التحقق من العائلة إذا تم تغيير familyId
     if (familyId && familyId !== existingProduct.familyId.toString()) {
       const family = await User.findById(familyId);
       if (!family) {
         return res.status(400).send("العائلة المحددة غير موجودة");
       }
 
-      if (family.type !== 'family') {
+      if (family.type !== "family") {
         return res.status(400).send("النوع المحدد ليس لعائلة");
       }
     }
 
-    // التحقق من عدم تكرار اسم المنتج (باستثناء المنتج الحالي)
     if (name) {
-      const duplicateProduct = await Product.findOne({
-        name: name.trim(),
-        familyId: familyId || existingProduct.familyId,
-        _id: { $ne: id }
-      });
+      const duplicateProduct = await Product.findOne({  name: name.trim(),  familyId: familyId || existingProduct.familyId,  _id: { $ne: id },  });
 
       if (duplicateProduct) {
         return res.status(400).send("اسم المنتج موجود بالفعل لدى هذه العائلة");
@@ -222,27 +209,34 @@ router.put("/:id", whichUpload.single('image'), async (req, res) => {
       status: status,
     };
 
-    // التعامل مع تحديث الصورة
     if (req.file) {
-      updateData.image = postImageLocatianSpecify(req);
+
+      if (existingProduct.image?.publicId) {
+        await cloudinary.uploader.destroy(existingProduct.image.publicId);
+      }
+
+      const result = await cloudinary.uploader.upload(req.file.path, {  folder: "product_images",  });
+      fs.unlinkSync(req.file.path);
+
+      updateData.image = {
+        url: result.secure_url,
+        publicId: result.public_id,
+      };
     }
 
-    // إزالة القيم غير المحددة
-    Object.keys(updateData).forEach(key => {  if (updateData[key] === undefined) {  delete updateData[key]; }  });
+    Object.keys(updateData).forEach((key) => {  if (updateData[key] === undefined) {  delete updateData[key];  }  });
 
-    // تحديث المنتج
-    const updatedProduct = await Product.findByIdAndUpdate( id,  updateData,   { new: true, runValidators: true } ).populate('familyId', 'userName email type');
+    const updatedProduct = await Product.findByIdAndUpdate(id, updateData, {  new: true,  runValidators: true  }).populate("familyId", "userName email type");
 
     if (!updatedProduct) {
       return res.status(500).send("لا يمكن تحديث المنتج");
     }
 
     return res.status(200).send(updatedProduct);
-
   } catch (error) {
     console.error("خطأ في تحديث المنتج:", error);
 
-    if (error.name === 'CastError') {
+    if (error.name === "CastError") {
       return res.status(400).json({ message: "تنسيق معرف المنتج غير صحيح" });
     }
 
@@ -250,16 +244,15 @@ router.put("/:id", whichUpload.single('image'), async (req, res) => {
       return res.status(400).send("بيانات مكررة");
     }
 
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({
-        message: "خطأ في التحقق من البيانات",
-        errors: Object.values(error.errors).map(e => e.message)
-      });
+    if (error.name === "ValidationError") {
+      return res.status(400).json({  message: "خطأ في التحقق من البيانات",  errors: Object.values(error.errors).map((e) => e.message),  });
     }
 
     res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
 });
+
+
 
 
 // POST - Add comment to product

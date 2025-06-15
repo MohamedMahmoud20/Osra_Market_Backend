@@ -48,6 +48,7 @@ const userSchema = mongoose.Schema(
       type: String,
       default: "",
     },
+    imagePublicId: { type: String , default: "" },
     type: {
       type: String,
       enum: ["admin", "family", "client"],

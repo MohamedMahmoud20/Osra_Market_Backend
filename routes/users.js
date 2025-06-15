@@ -2,6 +2,7 @@ const { User } = require("../models/user");
 const express = require("express");
 const router = express.Router();
 const { postImageLocatianSpecify, whichUpload } = require("../imageStorage");
+const cloudinary = require("../utils/cloudinary");
 const bcrypt = require("bcryptjs");
 const {  body , validationResult  } = require("express-validator");
 
@@ -187,42 +188,31 @@ router.post("/login", async (req, res) => {
 
 });
 
-
-// PUT - Update user
 router.put("/:id", whichUpload.single("image"), async (req, res) => {
   try {
     const userId = req.params.id;
-
     const existingUser = await User.findById(userId);
+
     if (!existingUser) {
-      return res.status(404).json({ message: "The user with the given ID was not found." });
+      return res.status(404).json({ message: "المستخدم غير موجود" });
     }
 
     if (req.body.email) {
-      const emailExists = await User.findOne({ 
-        email: req.body.email.trim().toLowerCase(),
-        _id: { $ne: userId }
-      });
+      const emailExists = await User.findOne({   email: req.body.email.trim().toLowerCase(),  _id: { $ne: userId }  });
       if (emailExists) {
         return res.status(400).json({ message: "هذا البريد الإلكتروني مستخدم من قبل" });
       }
     }
 
     if (req.body.phoneNumber) {
-      const phoneExists = await User.findOne({ 
-        phoneNumber: req.body.phoneNumber.trim(),
-        _id: { $ne: userId }
-      });
+      const phoneExists = await User.findOne({   phoneNumber: req.body.phoneNumber.trim(),  _id: { $ne: userId }  });
       if (phoneExists) {
         return res.status(400).json({ message: "هذا الرقم موجود من قبل" });
       }
     }
 
     if (req.body.userName) {
-      const usernameExists = await User.findOne({ 
-        userName: req.body.userName.trim(),
-        _id: { $ne: userId }
-      });
+      const usernameExists = await User.findOne({   userName: req.body.userName.trim(),  _id: { $ne: userId }  });
       if (usernameExists) {
         return res.status(400).json({ message: "اسم المستخدم موجود من قبل" });
       }
@@ -245,20 +235,19 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
     }
 
     if (req.file) {
-      updateData.image = postImageLocatianSpecify(req);
+      if (existingUser.imagePublicId) {
+        await cloudinary.uploader.destroy(existingUser.imagePublicId);
+      }
+
+      const { imageUrl, publicId } = postImageLocatianSpecify(req);
+
+      updateData.image = imageUrl;
+      updateData.imagePublicId = publicId;
     }
 
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] === undefined) {
-        delete updateData[key];
-      }
-    });
+    Object.keys(updateData).forEach(key => {  if (updateData[key] === undefined) delete updateData[key];  });
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true, runValidators: true }
-    ).select("-password");
+    const updatedUser = await User.findByIdAndUpdate(  userId,  updateData,  { new: true, runValidators: true }  ).select("-password");
 
     if (!updatedUser) {
       return res.status(500).json({ message: "لا يمكن تحديث المستخدم" });
@@ -270,7 +259,7 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
     console.error("Error updating user:", error);
 
     if (error.name === 'CastError') {
-      return res.status(400).json({ message: "Invalid user ID format" });
+      return res.status(400).json({ message: "تنسيق معرف المستخدم غير صحيح" });
     }
 
     if (error.code === 11000) {
@@ -280,12 +269,12 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
 
     if (error.name === 'ValidationError') {
       return res.status(400).json({ 
-        message: "Validation error", 
+        message: "خطأ في التحقق من البيانات", 
         errors: Object.values(error.errors).map(e => e.message) 
       });
     }
 
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
 });
 
