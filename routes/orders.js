@@ -42,15 +42,56 @@ router.get('/family/:familyId', async (req, res) => {
 
 // POST - Create order from families data
 router.post('/', async (req, res) => {
-  const { userId, orderNotes = '', families } = req.body;
+  const { userId, orderNotes = '' , phone , address , location} = req.body;
 
   try {
     // Validate required fields
     if (!userId) {
       return res.status(400).json({ message: "معرف المستخدم مطلوب" });
     }
+    const cartItems = await Cart.find(req.baseUrl.userId).populate('familyId', 'userName email type phoneNumber')
+      .populate('productId', 'name price image description discount count_in_stock').populate('userId', 'userName email').sort({ createdAt: -1 });
 
-    if (!families || !Array.isArray(families) || families.length === 0) {
+    // Group cart items by family
+    const groupedByFamily = cartItems.reduce((acc, item) => {
+      const familyId = item.familyId._id.toString();
+      
+      if (!acc[familyId]) {
+        acc[familyId] = {
+          family: {
+            id: item.familyId._id,
+            userName: item.familyId.userName,
+            email: item.familyId.email,
+            type: item.familyId.type,
+            phoneNumber: item.familyId.phoneNumber
+          },
+          products: [],
+        };
+      }
+
+      console.log("Processing item:", item);
+      const price = item.productId.price;
+      const discountPercent = item.productId.discount || 0;
+      const priceAfterDiscount = price * (1 - discountPercent / 100);
+      const itemTotal = priceAfterDiscount * item.quantity;
+
+      acc[familyId].products.push({
+        cartId: item._id,
+        product: item.productId,
+        user: item.userId,
+        quantity: item.quantity,
+        priceAfterDiscount: priceAfterDiscount,
+        itemTotal: itemTotal,
+        addedAt: item.createdAt
+      });
+
+      return acc;
+    }, {});
+
+    // Convert to array format
+    const familiesWithProducts = Object.values(groupedByFamily);
+
+    if (!familiesWithProducts || !Array.isArray(familiesWithProducts) || familiesWithProducts.length === 0) {
       return res.status(400).json({ message: "بيانات العائلات مطلوبة ويجب أن تكون مصفوفة غير فارغة" });
     }
 
@@ -65,7 +106,7 @@ router.post('/', async (req, res) => {
     const cartIdsToDelete = [];
 
     // Process each family from the request
-    for (const familyData of families) {
+    for (const familyData of familiesWithProducts) {
       const { family, products } = familyData;
 
       if (!family || !family.id || !products || !Array.isArray(products)) {
@@ -135,6 +176,9 @@ router.post('/', async (req, res) => {
       ordersFamily: createdOrderFamilies,
       totalAmount: totalAmount,
       orderStatus: 'pending',
+      phone: phone,
+      location: location,
+      address: address,
       orderNotes: orderNotes
     });
 
@@ -152,7 +196,7 @@ router.post('/', async (req, res) => {
       message: "تم إنشاء الطلب بنجاح وتم مسح السلة",
       order: populatedOrder,
       summary: {
-        totalFamilies: families.length,
+        totalFamilies: familiesWithProducts.length,
         totalProducts: cartIdsToDelete.length,
         totalAmount: totalAmount,
         cartItemsDeleted: cartIdsToDelete.length

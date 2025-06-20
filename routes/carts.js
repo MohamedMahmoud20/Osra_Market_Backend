@@ -86,10 +86,9 @@ router.get('/', async (req, res) => {
 
     // Get all cart items with populated data
     const cartItems = await Cart.find(query)
-      .populate('familyId', 'userName email type phoneNumber')
+      .populate('familyId', 'userName email type phoneNumber _id')
       .populate('productId', 'name price image description discount count_in_stock')
-      .populate('userId', 'userName email')
-      .sort({ createdAt: -1 });
+      .populate('userId', 'userName email').sort({ createdAt: -1 });
 
     // Group cart items by family
     const groupedByFamily = cartItems.reduce((acc, item) => {
@@ -110,6 +109,7 @@ router.get('/', async (req, res) => {
         };
       }
 
+      console.log("Processing item:", item);
       const price = item.productId.price;
       const discountPercent = item.productId.discount || 0;
       const priceAfterDiscount = price * (1 - discountPercent / 100);
@@ -150,6 +150,35 @@ router.get('/', async (req, res) => {
     return res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
 });
+
+// GET - Get cart item count for a specific user
+router.get('/getCartCounter', async (req, res) => {
+  try {
+    const { userId } = req.query;
+
+    let query = {};
+    if (userId) {
+      query.userId = userId;
+    }
+
+    // Get all cart items with populated data
+    const cartItems = await Cart.find(query).countDocuments();
+    console.log("Total cart items:", cartItems);
+    res.status(200).json({
+      totalCartItems: cartItems
+    });
+
+  } catch (error) {
+    console.error("Error getting cart items:", error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "تنسيق المعرف غير صحيح" });
+    }
+    
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
+
 
 // GET - Get cart items for specific family
 router.get('/family/:familyId', async (req, res) => {

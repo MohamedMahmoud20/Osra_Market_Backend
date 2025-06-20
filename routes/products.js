@@ -111,13 +111,13 @@ router.post(`/`, whichUpload.single("image"), async (req, res) => {
       imagePublicId: imagePath ? imagePath.publicId : "",
       description: description?.trim(),
       price: parseFloat(price),
-      stock_limit: Boolean(stock_limit) || false,
+      stock_limit: stock_limit==='true',
       count_in_stock: parseInt(count_in_stock) || 0,
       discount: parseFloat(discount) || 0,
       familyId: familyId,
       status: status ?? true,
     });
-
+// 
     newProduct = await newProduct.save();
 
     if (!newProduct) {
@@ -125,7 +125,6 @@ router.post(`/`, whichUpload.single("image"), async (req, res) => {
     }
 
     const productResponse = await Product.findById(newProduct._id).populate(  "familyId",  "userName address type phoneNumber"  );
-
     res.status(201).send(productResponse);
   } catch (error) {
     console.error("خطأ في إنشاء المنتج:", error);
@@ -280,6 +279,35 @@ router.post('/addComment', async (req, res) => {
   }
 });
 
+// POST - GET comment to product
+router.get('/getComment/:id', async (req, res) => {
+
+  try {
+    if (!req.params.id) {
+      return res.status(400).json({  message: "جميع الحقول مطلوبة (postId)" });
+    }
+
+    const commentsArray = await Comment.find({ product: req.params.id });
+  
+    res.status(201).json(commentsArray);
+
+  } catch (error) {
+    console.error("Error creating comment:", error);
+    
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: "خطأ في التحقق من البيانات",
+        errors: Object.values(error.errors).map(e => e.message)
+      });
+    }
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "تنسيق المعرف غير صحيح" });
+    }
+    
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
 
 
 

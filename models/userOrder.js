@@ -11,6 +11,18 @@ const userOrderSchema = mongoose.Schema(
       type: String,
       unique: true,
     },
+     phone: {
+      type: String,
+      unique: true,
+    },
+     address: {
+      type: String,
+      unique: true,
+    },
+     location: {
+      type: String,
+      unique: true,
+    },
     ordersFamily: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: "OrdersFamily",

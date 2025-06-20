@@ -144,9 +144,10 @@ router.post(
     
       let newUser = new User({
         userName: req.body.userName.trim(),
-        email: req.body.email.trim(),
+        email: req.body.email.trim().toLowerCase(),
         phoneNumber: req.body.phoneNumber.trim(),
         description: req.body.description || "",
+        activityDescription: req.body.activityDescription || "",
         countryCode: req.body.countryCode.trim(),
         password: bcrypt.hashSync(req.body.password, 10),
         address: req.body.address || "",
@@ -181,7 +182,7 @@ router.post("/login", async (req, res) => {
     try {
 
         const { email, password } = req.body;
-        let userFound = await User.findOne( { email: email });
+        let userFound = await User.findOne( { email: email.toLowerCase() });
         if (!userFound) { return res.status(400).send({ message: "الريد الالكتروني غير مسجل بالنظام" }); }
     
 
@@ -247,6 +248,8 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
       email: req.body.email?.trim().toLowerCase(),
       phoneNumber: req.body.phoneNumber?.trim(),
       description: req.body.description,
+      activityDescription: req.body.activityDescription,
+      bankAccountNumber : req.body.bankAccountNumber,
       countryCode: req.body.countryCode?.trim(),
       address: req.body.address,
       location: req.body.location,
