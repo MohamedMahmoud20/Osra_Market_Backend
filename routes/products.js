@@ -287,7 +287,7 @@ router.get('/getComment/:id', async (req, res) => {
       return res.status(400).json({  message: "جميع الحقول مطلوبة (postId)" });
     }
 
-    const commentsArray = await Comment.find({ product: req.params.id });
+    const commentsArray = await Comment.find({ product: req.params.id }).populate("user");
   
     res.status(201).json(commentsArray);
 

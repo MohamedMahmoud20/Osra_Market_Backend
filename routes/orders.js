@@ -314,6 +314,43 @@ router.put('/family/order/:orderFamilyId', async (req, res) => {
 
 
 
+// GET - Get cart item count for a specific user
+router.get('/getOrderCounter', async (req, res) => {
+  try {
+    const { userId , orderStatus , type} = req.query;
+
+    let query = {};
+    if (userId) {
+      query.userId = userId;
+    }
+
+    if (orderStatus) {
+      query.orderStatus = orderStatus;
+    }
+
+    let orderItems ;
+
+    if(type==="family"){
+    orderItems = await OrderFamily.find(query).countDocuments();
+    }else{
+    orderItems = await UserOrder.find(query).countDocuments();
+    }
+
+
+    res.status(200).json({
+      totalOrderItems: orderItems
+    });
+
+  } catch (error) {
+    console.error("Error getting cart items:", error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: "تنسيق المعرف غير صحيح" });
+    }
+    
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
 
 
 

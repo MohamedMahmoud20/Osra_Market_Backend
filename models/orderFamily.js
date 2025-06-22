@@ -7,6 +7,10 @@ const orderFamilySchema = mongoose.Schema(
       ref: "Users",
       required: true,
     },
+    orderNumber: {
+      type: String,
+      unique: true,
+    },
     familyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Users",
