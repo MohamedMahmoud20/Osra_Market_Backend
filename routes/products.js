@@ -57,7 +57,7 @@ router.get(`/:id`, async (req, res) => {
   try {
     const { id } = req.params;
     const product = await Product.findById(id).populate([ 
-         { path: 'familyId', select: 'userName email type phoneNumber' },{ path: 'comments', populate: { path: 'user', select: 'userName email' } }]);    
+         { path: 'familyId' },{ path: 'comments', populate: { path: 'user' } }]);    
 
     if (!product) {
          return res.status(404).json({   message: "المنتج بالمعرف المحدد غير موجود."  });

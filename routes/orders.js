@@ -24,7 +24,7 @@ router.get('/family/:familyId', async (req, res) => {
 
     // Get OrderFamily documents for this family
     const orderFamilies = await OrderFamily.find(orderFamilyQuery)
-      .populate('userId', 'userName email phoneNumber')
+      .populate('userId familyId')
       .populate('products.productId', 'name price image description discount count_in_stock').sort({ createdAt: -1 });
 
     res.status(200).send(orderFamilies);
@@ -248,7 +248,7 @@ router.get('/user/:userId', async (req, res) => {
       .populate({
         path: 'ordersFamily',
         populate: [
-          { path: 'familyId', select: 'userName email type phoneNumber' },
+          { path: 'familyId' },
           { path: 'products.productId', select: 'name price image description discount' }
         ]
       }).sort({ createdAt: -1 });

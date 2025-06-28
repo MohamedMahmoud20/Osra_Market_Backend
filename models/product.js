@@ -9,12 +9,12 @@ const productSchema = mongoose.Schema(
     },
     image: {
       type: String,
-      required: true,
+      required: false,
     },
     imagePublicId: { type: String , default: "" },
     description: {
       type: String,
-      required: true,
+      required: false,
       trim: true,
     },
     price: {
