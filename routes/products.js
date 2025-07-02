@@ -29,11 +29,12 @@ router.get(`/`, async (req, res) => {
     if (name) {
       filter.name = { $regex: name, $options: 'i' };
     }
+
+     filter.status= { $ne: false }; 
   
     let productList;
    
-      productList = await Product.find(filter).populate([
-        { path: 'familyId', select: 'userName email type phoneNumber status image ' },
+      productList = await Product.find(filter).populate([  { path: 'familyId', select: 'userName email type phoneNumber status image ' },
         { path: 'comments', populate: { path: 'user', select: 'userName email' } }  ]).sort({ createdAt: -1 });
     
 
@@ -322,8 +323,7 @@ router.delete("/:id", async (req, res) => {
       return res.status(404).json({  message: "المنتج بالمعرف المحدد غير موجود."  });
     }
 
-    // حذف المنتج من قاعدة البيانات
-    await Product.findByIdAndDelete(id);
+    await Product.findByIdAndUpdate(id, {status : false}, {  new: true,  runValidators: true  })
 
     return res.status(200).json({
       message: "تم حذف المنتج بنجاح",

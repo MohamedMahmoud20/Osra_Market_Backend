@@ -305,6 +305,54 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
 });
 
 
+router.post("/forgetpassword", async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: "يرجى إدخال البريد الإلكتروني" });
+  }
+
+  const user = await User.findOne({ email: email.trim().toLowerCase() });
+
+  if (user) {
+    return res.status(200).json({ message: "البريد الالكتروني صحيح" });
+  } else {
+    return res.status(404).json({ message: "هذا البريد غير مسجل" });
+  }
+});
+
+
+
+router.put("/changepassword/:id", async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { currentPassword, newPassword } = req.body;
+
+    // تحقق من وجود المستخدم
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "المستخدم غير موجود" });
+    }
+
+    if (user.type !== "client") {
+      return res.status(403).json({ message: "غير مسموح إلا للعميل فقط بتغيير كلمة المرور" });
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: "كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل" });
+    }
+
+    // تحديث كلمة المرور
+    const hashedPassword = bcrypt.hashSync(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    return res.status(200).json({ message: "تم تغيير كلمة المرور بنجاح" });
+  } catch (error) {
+    console.error("Error changing password:", error);
+    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
 
 // DELETE user (optional - for completeness)
 router.delete("/:id", async (req, res) => {

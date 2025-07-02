@@ -62,6 +62,10 @@ const userSchema = mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    superAdmin: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true, // Adds createdAt and updatedAt

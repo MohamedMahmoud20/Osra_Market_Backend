@@ -18,16 +18,19 @@ router.get('/family/:familyId', async (req, res) => {
       return res.status(404).json({ message: "العائلة غير موجودة" });
     }
 
-    // Build query for OrderFamily
     let orderFamilyQuery = { familyId };
   
-
     // Get OrderFamily documents for this family
-    const orderFamilies = await OrderFamily.find(orderFamilyQuery)
-      .populate('userId familyId')
-      .populate('products.productId', 'name price image description discount count_in_stock').sort({ createdAt: -1 });
+    const orderFamilies = await OrderFamily.find(orderFamilyQuery).populate('userId familyId')
+    .populate('products.productId', 'name price image description discount count_in_stock').sort({ createdAt: -1 });
 
-    res.status(200).send(orderFamilies);
+
+    const deliveredOrders = orderFamilies.filter(order => order.orderStatus === 'delivered').slice(0, 5);
+    const otherOrders = orderFamilies.filter(order => order.orderStatus !== 'delivered');
+
+    const finalOrders = [...deliveredOrders, ...otherOrders];
+
+    res.status(200).json(finalOrders);
 
   } catch (error) {
     console.error("Error getting family orders:", error);
@@ -226,6 +229,7 @@ router.post('/', async (req, res) => {
 });
 
 // GET - Get user orders (with auto update if all families are delivered)
+
 router.get('/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -244,16 +248,8 @@ router.get('/user/:userId', async (req, res) => {
     }
 
     // جلب الطلبات
-    const orders = await UserOrder.find(query)
-      .populate({
-        path: 'ordersFamily',
-        populate: [
-          { path: 'familyId' },
-          { path: 'products.productId', select: 'name price image description discount' }
-        ]
-      }).sort({ createdAt: -1 });
-
-      // تحقق من حالة الطلبات العائلية وتحديث حالة الطلب الرئيسية إذا لزم الأمر
+    let orders = await UserOrder.find(query).populate({path: 'ordersFamily',
+        populate: [  { path: 'familyId' },{ path: 'products.productId', select: 'name price image description discount' } ]  }).sort({ createdAt: -1 });
 
     for (const order of orders) {
       if (
@@ -266,7 +262,14 @@ router.get('/user/:userId', async (req, res) => {
       }
     }
 
-    res.status(200).json(orders);
+    // تقسيم الطلبات حسب الحالة
+    const deliveredOrders = orders.filter(order => order.orderStatus === 'delivered').slice(0, 5);
+    const otherOrders = orders.filter(order => order.orderStatus !== 'delivered');
+
+    // دمج النتائج: أول 5 delivered + باقي الطلبات الأخرى
+    const finalOrders = [...deliveredOrders, ...otherOrders];
+
+    res.status(200).json(finalOrders);
 
   } catch (error) {
     console.error("Error getting user orders:", error);
