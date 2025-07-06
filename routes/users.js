@@ -315,7 +315,11 @@ router.post("/forgetpassword", async (req, res) => {
   const user = await User.findOne({ email: email.trim().toLowerCase() });
 
   if (user) {
-    return res.status(200).json({ message: "البريد الالكتروني صحيح" });
+    return res.status(200).json({
+       message: "البريد الالكتروني صحيح",
+       "data": user
+      
+      });
   } else {
     return res.status(404).json({ message: "هذا البريد غير مسجل" });
   }

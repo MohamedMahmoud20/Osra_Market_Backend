@@ -52,9 +52,13 @@ router.post('/', async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: "معرف المستخدم مطلوب" });
     }
-    const cartItems = await Cart.find(req.baseUrl.userId).populate('familyId', 'userName email type phoneNumber')
+    const cartItems = await Cart.find({userId : userId}).populate('familyId', 'userName email type phoneNumber')
       .populate('productId', 'name price image description discount count_in_stock').populate('userId', 'userName email').sort({ createdAt: -1 });
 
+
+      console.log("Cart items:", cartItems.length);
+
+      // return ;
     // Group cart items by family
     const groupedByFamily = cartItems.reduce((acc, item) => {
       const familyId = item.familyId._id.toString();
@@ -72,7 +76,6 @@ router.post('/', async (req, res) => {
         };
       }
 
-      console.log("Processing item:", item);
       const price = item.productId.price;
       const discountPercent = item.productId.discount || 0;
       const priceAfterDiscount = price * (1 - discountPercent / 100);
@@ -187,13 +190,16 @@ router.post('/', async (req, res) => {
 
     const savedUserOrder = await userOrder.save();
 
-    await OrderFamily.updateMany( { _id: { $in: createdOrderFamilies } }, { userOrderId: savedUserOrder._id } );
+    console.log("Created Order Families:", createdOrderFamilies.length);
+
 
     if (cartIdsToDelete.length > 0) {
       await Cart.deleteMany({ _id: { $in: cartIdsToDelete } });
     }
 
     const populatedOrder = await UserOrder.findById(savedUserOrder._id);
+
+    await OrderFamily.updateMany( { _id: { $in: createdOrderFamilies } }, { userOrderId: savedUserOrder._id , orderNumber: populatedOrder.orderNumber } );
 
     res.status(201).json({
       message: "تم إنشاء الطلب بنجاح وتم مسح السلة",
@@ -252,6 +258,7 @@ router.get('/user/:userId', async (req, res) => {
         populate: [  { path: 'familyId' },{ path: 'products.productId', select: 'name price image description discount' } ]  }).sort({ createdAt: -1 });
 
     for (const order of orders) {
+
       if (
         order.ordersFamily.length > 0 &&
         order.ordersFamily.every(fam => fam.orderStatus === 'delivered') &&
@@ -260,6 +267,17 @@ router.get('/user/:userId', async (req, res) => {
         await UserOrder.findByIdAndUpdate(order._id, { orderStatus: 'delivered' });
         order.orderStatus = 'delivered'; // تحديث داخل الذاكرة أيضًا
       }
+      
+      if (
+        order.ordersFamily.length > 0 &&
+        order.ordersFamily.every(fam => fam.orderStatus === 'cancelled') &&
+        order.orderStatus !== 'cancelled'
+      ) {
+        await UserOrder.findByIdAndUpdate(order._id, { orderStatus: 'cancelled' });
+        order.orderStatus = 'cancelled'; // تحديث داخل الذاكرة أيضًا
+      }
+
+
     }
 
     // تقسيم الطلبات حسب الحالة
