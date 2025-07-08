@@ -13,7 +13,7 @@ const userOrderSchema = mongoose.Schema(
     },
      phone: {
       type: String,
-      unique: true,
+      default:"" ,
     },
      address: {
       type: String,

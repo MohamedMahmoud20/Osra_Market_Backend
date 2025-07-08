@@ -335,7 +335,7 @@ router.delete('/remove/:cartId', async (req, res) => {
 router.delete('/clear/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-
+    
     const result = await Cart.deleteMany({ userId });
 
     res.status(200).json({
