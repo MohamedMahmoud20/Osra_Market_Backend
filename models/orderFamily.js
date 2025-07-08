@@ -9,7 +9,7 @@ const orderFamilySchema = mongoose.Schema(
     },
     orderNumber: {
       type: String,
-      unique: true,
+      default: "",
     },
     familyId: {
       type: mongoose.Schema.Types.ObjectId,

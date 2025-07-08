@@ -9,7 +9,7 @@ const userOrderSchema = mongoose.Schema(
     },
     orderNumber: {
       type: String,
-      unique: true,
+      unique: false,
     },
      phone: {
       type: String,
