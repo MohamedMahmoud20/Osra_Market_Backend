@@ -331,12 +331,19 @@ router.delete('/remove/:cartId', async (req, res) => {
   }
 });
 
-// DELETE - Clear user's cart
+
 router.delete('/clear/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
-    const result = await Cart.deleteMany({ userId });
+
+    const mongoose = require('mongoose');
+
+    const objectId = new mongoose.Types.ObjectId(userId);
+
+    const items = await Cart.find({ userId: objectId });
+    console.log(`Found ${items.length} items to delete for user ${userId}`);
+
+    const result = await Cart.deleteMany({ userId: objectId });
 
     res.status(200).json({
       message: "تم مسح السلة بنجاح",
@@ -345,13 +352,14 @@ router.delete('/clear/:userId', async (req, res) => {
 
   } catch (error) {
     console.error("Error clearing cart:", error);
-    
+
     if (error.name === 'CastError') {
       return res.status(400).json({ message: "تنسيق معرف المستخدم غير صحيح" });
     }
-    
-    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+
+    res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
 });
+
 
 module.exports = router;
