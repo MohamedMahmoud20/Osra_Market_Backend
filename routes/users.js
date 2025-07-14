@@ -305,6 +305,24 @@ router.put("/:id", whichUpload.single("image"), async (req, res) => {
 });
 
 
+router.put("/userDisable/:id", async (req, res) => {
+  try {
+    
+    
+         await User.findByIdAndUpdate( req.params.id, { 
+          active_users :  req.body.status,
+          status : req.body.status , token : null },{new : true});
+
+  
+      return res.status(200).send("Done");
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).send("Internal Server Error");
+  }
+});
+
+
 router.post("/forgetpassword", async (req, res) => {
   const { email } = req.body;
 
