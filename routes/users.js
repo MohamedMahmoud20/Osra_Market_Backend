@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const { postImageLocatianSpecify, whichUpload } = require("../imageStorage");
 const cloudinary = require("../utils/cloudinary");
-const fs = require('fs');
+const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const {  body , validationResult  } = require("express-validator");
 
@@ -124,7 +124,7 @@ router.post(
 
       const existingUserByPhone = await User.findOne({ phoneNumber: req.body.phoneNumber.trim() });
       if (existingUserByPhone) {
-        return res.status(400).json({ message: "هذا الرقم موجود من قبل" });
+        return res.status(400).json({ message: "رقم الهاتف موجود بالفعل" });
       }
 
       const existingUserByUsername = await User.findOne({ userName: req.body.userName.trim() });
@@ -148,6 +148,7 @@ router.post(
         phoneNumber: req.body.phoneNumber.trim(),
         description: req.body.description || "",
         activityDescription: req.body.activityDescription || "",
+        bankAccountNumber : req.body.bankAccountNumber || "",
         countryCode: req.body.countryCode.trim(),
         password: bcrypt.hashSync(req.body.password, 10),
         address: req.body.address || "",
@@ -180,16 +181,17 @@ router.post(
 router.post("/login", async (req, res) => {
 
     try {
-
         const { email, password } = req.body;
         let userFound = await User.findOne( { email: email.toLowerCase() });
-        if (!userFound) { return res.status(400).send({ message: "الريد الالكتروني غير مسجل بالنظام" }); }
+      if (!userFound) { return res.status(400).send({ message: "الريد الالكتروني غير مسجل بالنظام" }); }
     
-
       if (!bcrypt.compareSync(password, userFound.password)) {
         return res.status(400).json({ message: "كلمة المرور غير صحيحة" });
       }
        userFound.password = undefined; 
+      const secret = process.env.secret;
+      const token = jwt.sign(  {  userId: userFound.id,  userName: userFound.userName,  },   secret  );
+      userFound = await User.findByIdAndUpdate( userFound.id, { token : token } , {new: true});
        return res.status(200).send(userFound);
 
     } catch (error) {
@@ -197,8 +199,6 @@ router.post("/login", async (req, res) => {
     }
 
 });
-
-
 
 router.put("/:id", whichUpload.single("image"), async (req, res) => {
   try {

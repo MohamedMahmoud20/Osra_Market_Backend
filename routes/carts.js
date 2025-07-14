@@ -275,28 +275,42 @@ router.put('/update/:cartId', async (req, res) => {
       return res.status(400).json({ message: "الكمية يجب أن تكون أكبر من صفر" });
     }
 
+    // جلب عنصر السلة
     const cartItem = await Cart.findById(cartId);
     if (!cartItem) {
       return res.status(404).json({ message: "عنصر السلة غير موجود" });
     }
 
-    const updatedCartItem = await Cart.findByIdAndUpdate(  cartId,  { quantity: parseInt(quantity) },  { new: true } )
-      .populate('familyId', 'userName email type')
-      .populate('productId', 'name price image description discount')
-      .populate('userId', 'userName email');
+    // جلب بيانات المنتج المرتبط بعنصر السلة
+    const product = await Product.findById(cartItem.productId);
+    if (!product) {
+      return res.status(404).json({ message: "المنتج غير موجود" });
+    }
 
-    res.status(200).json({ message: "تم تحديث الكمية بنجاح",  cartItem: updatedCartItem });
+    // تحقق من الحد الأقصى للكمية المتوفرة
+    if (quantity > product.count_in_stock) {
+      return res.status(400).json({
+        message: `الكمية المطلوبة أكبر من الحد الأقصى المتوفر من المنتج. المتوفر: ${product.count_in_stock}`
+      });
+    }
+
+    // تحديث الكمية
+    const updatedCartItem = await Cart.findByIdAndUpdate( cartId , { quantity: parseInt(quantity) },  { new: true }  ).populate('familyId', 'userName email type')
+      .populate('productId', 'name price image description discount').populate('userId', 'userName email');
+
+    res.status(200).json({ message: "تم تحديث الكمية بنجاح", cartItem: updatedCartItem });
 
   } catch (error) {
     console.error("Error updating cart item:", error);
-    
+
     if (error.name === 'CastError') {
       return res.status(400).json({ message: "تنسيق المعرف غير صحيح" });
     }
-    
+
     return res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
 });
+
 
 // DELETE - Remove item from cart
 router.delete('/remove/:cartId', async (req, res) => {

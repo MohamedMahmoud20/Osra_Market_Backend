@@ -5,6 +5,8 @@ const morgan = require("morgan");
 const mongoose = require("mongoose");
 const path = require("path");
 const { User } = require("./models/user");
+const { promisify } = require('util'); // استيراد promisify من util
+const jwt = require("jsonwebtoken");
 const cors = require("cors");
 require("dotenv/config");
 const { decryptAES128ECB } = require("./helper/decrypt");
@@ -16,33 +18,37 @@ app.use(bodyParser.json());
 app.use(morgan("tiny"));
 app.use("/public/uploads", express.static(__dirname + "/public/uploads"));
 
-// app.use(async (req, res, next) => {
-//   try {
-//     const encrypted = req.headers["x-client-id"]; 
+async function middleWareForIsAdmin(req, res, next) {
+   console.log("Admin  : " , req.headers.is_admin);
+   const Token =  req.headers.authorization &&  req.headers.authorization.startsWith("Bearer ")  ?  req.headers.authorization.split(" ")[1] : null;
+   console.log("Token  : " , Token);
 
-//     // if (!encrypted) return next();
+   if( req.headers.is_admin=="true"){     
 
-//     console.log("Encrypted ID:", encrypted);
-//     const key = "osraGomma";
-//     const decrypted = decryptAES128ECB('rVQfWMi2rx8AiVi0/cq+frV4V8T2Aqkh1Jky1MXqqI4=');
-//     console.log("Decrypted ID:", decrypted);
-//      const user = await User.findById(decrypted).select("-password");
-
-//     if (!user) {
-//       return res.status(404).json({ message: "المستخدم غير موجود" });
-//     }
-
-//     console.log("User:", user);
-//     if (user.status === false) {
-//       return res.status(256).json({ message: "غير مصرح" });
-//     }else{
-//       return next();
-//     }
-
-//   } catch (err) {
-//     return res.status(400).json({ message: "فشل في فك التشفير" });
-//   }
-// });
+      console.log("Is Admin : " , req.headers.is_admin)
+      next();
+    }
+    else if (Token){
+      try {
+        const decoded = await promisify(jwt.verify)(Token, process.env.secret);
+        console.log("DECODED : " , decoded.userId);
+        let user = await User.findById(decoded.userId);
+        // console.log(user);
+        if(user.token==null){
+          return res.status(256).send({logout  : true});
+         }
+        console.log(user.token.slice(0,20));
+        next();  
+      } catch (error) {
+        console.log("------------  " , error)
+         return res.status(256).send({logout  : true});
+      }
+    }
+    else{
+      return res.status(256).send({logout  : true});
+    }
+    return ;
+}
 
 // routers
 const userRouter = require("./routes/users");
@@ -52,10 +58,10 @@ const orderRouter = require("./routes/orders");
 
 
 const api = process.env.API_URL;
-app.use(`${api}/users`, userRouter);
-app.use(`${api}/products`, productRouter);
-app.use(`${api}/cart`, cartRouter);
-app.use(`${api}/orders`, orderRouter);
+app.use(`${api}/users`, middleWareForIsAdmin ,  userRouter);
+app.use(`${api}/products`, middleWareForIsAdmin ,  productRouter);
+app.use(`${api}/cart`, middleWareForIsAdmin ,  cartRouter);
+app.use(`${api}/orders`, middleWareForIsAdmin , orderRouter);
 
 // React frontend
 app.use(express.static("public/build"));

@@ -45,24 +45,29 @@ router.get('/family/:familyId', async (req, res) => {
 
 // POST - Create order from families data
 router.post('/', async (req, res) => {
-  const { userId, orderNotes = '' , phone , address , location} = req.body;
+  const { userId, orderNotes = '', phone, address, location } = req.body;
 
   try {
     // Validate required fields
     if (!userId) {
       return res.status(400).json({ message: "معرف المستخدم مطلوب" });
     }
-    const cartItems = await Cart.find({userId : userId}).populate('familyId', 'userName email type phoneNumber')
-      .populate('productId', 'name price image description discount count_in_stock').populate('userId', 'userName email').sort({ createdAt: -1 });
+    const cartItems = await Cart.find({ userId: userId })
+      .populate('familyId', 'userName email type phoneNumber')
+      .populate('productId', 'name price image description discount count_in_stock status stock_limit')
+      .populate('userId', 'userName email')
+      .sort({ createdAt: -1 });
 
 
-      console.log("Cart items:", cartItems.length);
+      if (cartItems.length === 0) {
+      return res.status(400).json({ message: "لقد قمت بهذا الطلب سابقا" });
+    }
 
-      // return ;
+
     // Group cart items by family
     const groupedByFamily = cartItems.reduce((acc, item) => {
       const familyId = item.familyId._id.toString();
-      
+
       if (!acc[familyId]) {
         acc[familyId] = {
           family: {
@@ -136,9 +141,16 @@ router.post('/', async (req, res) => {
           return res.status(404).json({ message: `المنتج ${product.name} غير موجود` });
         }
 
+        // تحقق من حالة المنتج
+        if (productExists.status === false) {
+          return res.status(400).json({ message: `المنتج ${product.name} غير متوفر حالياً` });
+        }
+
         if (productExists.stock_limit) {
           if (productExists.count_in_stock < quantity) {
-            return res.status(400).json({  message: `المنتج "${product.name}" غير متوفر بالكمية المطلوبة. المتوفر: ${productExists.count_in_stock}`  });
+            return res.status(400).json({
+              message: `المنتج "${product.name}" غير متوفر بالكمية المطلوبة. المتوفر: ${productExists.count_in_stock}`
+            });
           }
         }
 
@@ -160,7 +172,10 @@ router.post('/', async (req, res) => {
         cartIdsToDelete.push(cartId);
 
         if (productExists.stock_limit) {
-          await Product.findByIdAndUpdate(  product._id,   { $inc: { count_in_stock: -quantity } }  );
+          await Product.findByIdAndUpdate(
+            product._id,
+            { $inc: { count_in_stock: -quantity } }
+          );
         }
       }
 
@@ -190,16 +205,16 @@ router.post('/', async (req, res) => {
 
     const savedUserOrder = await userOrder.save();
 
-    console.log("Created Order Families:", createdOrderFamilies.length);
-
-
     if (cartIdsToDelete.length > 0) {
       await Cart.deleteMany({ _id: { $in: cartIdsToDelete } });
     }
 
     const populatedOrder = await UserOrder.findById(savedUserOrder._id);
 
-    await OrderFamily.updateMany( { _id: { $in: createdOrderFamilies } }, { userOrderId: savedUserOrder._id , orderNumber: populatedOrder.orderNumber } );
+    await OrderFamily.updateMany(
+      { _id: { $in: createdOrderFamilies } },
+      { userOrderId: savedUserOrder._id, orderNumber: populatedOrder.orderNumber }
+    );
 
     res.status(201).json({
       message: "تم إنشاء الطلب بنجاح وتم مسح السلة",
@@ -234,8 +249,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// GET - Get user orders (with auto update if all families are delivered)
 
+// GET - Get user orders (with auto update if all families are delivered)
 router.get('/user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
@@ -372,7 +387,6 @@ router.get('/getOrderCounter', async (req, res) => {
     return res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
 });
-
 
 
 module.exports = router;
