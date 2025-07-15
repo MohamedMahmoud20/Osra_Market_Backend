@@ -312,6 +312,58 @@ router.put('/update/:cartId', async (req, res) => {
 });
 
 
+// PUT - Batch update cart item quantities
+router.put('/update-multiple', async (req, res) => {
+  try {
+    const updates = req.body; // Expecting an array
+
+    if (!Array.isArray(updates) || updates.length === 0) {
+      return res.status(400).json({ message: "يجب إرسال مصفوفة من العناصر." });
+    }
+
+    // نتيجة التحديثات
+    let results = [];
+
+    for (const item of updates) {
+      const { cartId, count } = item;
+
+      if (!cartId || !Number.isInteger(count) || count < 1) {
+        results.push({  cartId,  success: false,  message: "الكمية يجب أن تكون أكبر من صفر ومعرف السلة مطلوب."  });
+        continue;
+      }
+
+
+      const cartItem = await Cart.findById(cartId);
+      if (!cartItem) {
+        results.push({  cartId,  success: false,  message: "عنصر السلة غير موجود"  });
+        continue;
+      }
+
+      const product = await Product.findById(cartItem.productId);
+      if (!product) {
+        results.push({  cartId,  success: false,  message: "المنتج غير موجود"  });
+        continue;
+      }
+
+      if (count > product.count_in_stock) {
+        results.push({  cartId,  success: false,  message: `الكمية المطلوبة أكبر من الحد الأقصى المتوفر من المنتج. المتوفر: ${product.count_in_stock}`  });
+        continue;
+      }
+
+      const updatedCartItem = await Cart.findByIdAndUpdate(  cartId,  { quantity: count },  { new: true } )
+        .populate('familyId', 'userName email type').populate('productId', 'name price image description discount').populate('userId', 'userName email');
+
+      results.push({  cartId,  success: true,  cartItem: updatedCartItem  });
+    }
+
+    res.status(200).json({ message: "تمت معالجة جميع العناصر", results });
+  } catch (error) {
+    console.error("Batch update error:", error);
+    res.status(500).json({ message: "خطأ داخلي في الخادم" });
+  }
+});
+
+
 // DELETE - Remove item from cart
 router.delete('/remove/:cartId', async (req, res) => {
   try {

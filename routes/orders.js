@@ -316,7 +316,6 @@ router.get('/user/:userId', async (req, res) => {
 });
 
 
-// PUT - Update family order status
 router.put('/family/order/:orderFamilyId', async (req, res) => {
   try {
     const { orderFamilyId } = req.params;
@@ -326,27 +325,39 @@ router.put('/family/order/:orderFamilyId', async (req, res) => {
       return res.status(400).json({ message: "حالة الطلب مطلوبة" });
     }
 
-    const updatedFamilyOrder = await OrderFamily.findByIdAndUpdate( orderFamilyId, { orderStatus: status }, { new: true } );
+    const order = await OrderFamily.findById(orderFamilyId);
 
-    if (!updatedFamilyOrder) {
+    if (!order) {
       return res.status(404).json({ message: "طلب العائلة غير موجود" });
     }
 
+    if (status === 'cancelled') {
+      if (Array.isArray(order.items)) {
+        for (const item of order.items) {
+        
+          await Product.findByIdAndUpdate(  item.productId,  { $inc: { count_in_stock: item.quantity } }  );
+        
+        }
+      }
+    }
+
+    order.orderStatus = status;
+    await order.save();
+
     res.status(200).json({
       message: "تم تحديث حالة طلب العائلة بنجاح",
-      orderFamily: updatedFamilyOrder
+      orderFamily: order
     });
 
   } catch (error) {
     console.error("Error updating family order status:", error);
-
     if (error.name === 'CastError') {
       return res.status(400).json({ message: "تنسيق معرف الطلب غير صحيح" });
     }
-
     return res.status(500).json({ message: "خطأ داخلي في الخادم" });
   }
 });
+
 
 
 
