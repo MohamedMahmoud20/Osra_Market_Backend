@@ -190,6 +190,10 @@ router.post("/login", async (req, res) => {
       }
        userFound.password = undefined; 
       const secret = process.env.secret;
+      if(userFound.status === false) {
+        return res.status(400).send({ message: "هذا الحساب غير مفعل" });
+      }
+
       const token = jwt.sign(  {  userId: userFound.id,  userName: userFound.userName,  },   secret  );
       userFound = await User.findByIdAndUpdate( userFound.id, { token : token } , {new: true});
        return res.status(200).send(userFound);

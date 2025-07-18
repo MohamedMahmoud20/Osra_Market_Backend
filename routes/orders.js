@@ -184,6 +184,9 @@ router.post('/', async (req, res) => {
         familyId: family.id,
         products: orderProducts,
         subtotal: familySubtotal,
+        phone: phone,
+        location: location,
+        address: address,
         orderStatus: 'pending'
       });
 

@@ -11,6 +11,18 @@ const orderFamilySchema = mongoose.Schema(
       type: String,
       default: "",
     },
+       phone: {
+      type: String,
+      default:"" ,
+    },
+     address: {
+      type: String,
+      unique: true,
+    },
+     location: {
+      type: String,
+      unique: true,
+    },
     familyId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Users",
