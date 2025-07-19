@@ -35,17 +35,17 @@ async function middleWareForIsAdmin(req, res, next) {
         let user = await User.findById(decoded.userId);
         // console.log(user);
         if(user.token==null){
-          return res.status(256).send({logout  : true});
+          return res.status(403).send({logout  : true});
          }
         console.log(user.token.slice(0,20));
         next();  
       } catch (error) {
         console.log("------------  " , error)
-         return res.status(256).send({logout  : true});
+         return res.status(403).send({logout  : true});
       }
     }
     else{
-      return res.status(256).send({logout  : true});
+      return res.status(403).send({logout  : true});
     }
     return ;
 }

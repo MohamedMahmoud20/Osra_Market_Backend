@@ -381,9 +381,11 @@ router.get('/getOrderCounter', async (req, res) => {
     let orderItems ;
 
     if(type==="family"){
-    orderItems = await OrderFamily.find(query).countDocuments();
+      delete query.userId;
+      query.familyId = userId;
+      orderItems = await OrderFamily.find(query).countDocuments();
     }else{
-    orderItems = await UserOrder.find(query).countDocuments();
+      orderItems = await UserOrder.find(query).countDocuments();
     }
 
 
