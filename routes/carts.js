@@ -325,9 +325,9 @@ router.put('/update-multiple', async (req, res) => {
     let results = [];
 
     for (const item of updates) {
-      const { cartId, count } = item;
+      const { cartId, quantity } = item;
 
-      if (!cartId || !Number.isInteger(count) || count < 1) {
+      if (!cartId || !Number.isInteger(quantity) || quantity < 1) {
         results.push({  cartId,  success: false,  message: "الكمية يجب أن تكون أكبر من صفر ومعرف السلة مطلوب."  });
         continue;
       }
@@ -345,12 +345,12 @@ router.put('/update-multiple', async (req, res) => {
         continue;
       }
 
-      if (count > product.count_in_stock) {
+      if (quantity > product.count_in_stock) {
         results.push({  cartId,  success: false,  message: `الكمية المطلوبة أكبر من الحد الأقصى المتوفر من المنتج. المتوفر: ${product.count_in_stock}`  });
         continue;
       }
 
-      const updatedCartItem = await Cart.findByIdAndUpdate(  cartId,  { quantity: count },  { new: true } )
+      const updatedCartItem = await Cart.findByIdAndUpdate(  cartId,  { quantity: quantity },  { new: true } )
         .populate('familyId', 'userName email type').populate('productId', 'name price image description discount').populate('userId', 'userName email');
 
       results.push({  cartId,  success: true,  cartItem: updatedCartItem  });

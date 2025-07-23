@@ -335,8 +335,8 @@ router.put('/family/order/:orderFamilyId', async (req, res) => {
     }
 
     if (status === 'cancelled') {
-      if (Array.isArray(order.items)) {
-        for (const item of order.items) {
+      if (Array.isArray(order.products)) {
+        for (const item of order.products) {
         
           await Product.findByIdAndUpdate(  item.productId,  { $inc: { count_in_stock: item.quantity } }  );
         
