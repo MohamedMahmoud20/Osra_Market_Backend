@@ -287,12 +287,12 @@ router.put('/update/:cartId', async (req, res) => {
       return res.status(404).json({ message: "المنتج غير موجود" });
     }
 
-    // تحقق من الحد الأقصى للكمية المتوفرة
-    if (quantity > product.count_in_stock) {
-      return res.status(400).json({
-        message: `الكمية المطلوبة أكبر من الحد الأقصى المتوفر من المنتج. المتوفر: ${product.count_in_stock}`
-      });
-    }
+    // // تحقق من الحد الأقصى للكمية المتوفرة
+    // if (quantity > product.count_in_stock) {
+    //   return res.status(400).json({
+    //     message: `الكمية المطلوبة أكبر من الحد الأقصى المتوفر من المنتج. المتوفر: ${product.count_in_stock}`
+    //   });
+    // }
 
     // تحديث الكمية
     const updatedCartItem = await Cart.findByIdAndUpdate( cartId , { quantity: parseInt(quantity) },  { new: true }  ).populate('familyId', 'userName email type')
@@ -345,10 +345,10 @@ router.put('/update-multiple', async (req, res) => {
         continue;
       }
 
-      if (quantity > product.count_in_stock) {
-        results.push({  cartId,  success: false,  message: `الكمية المطلوبة أكبر من الحد الأقصى المتوفر من المنتج. المتوفر: ${product.count_in_stock}`  });
-        continue;
-      }
+      // if (quantity > product.count_in_stock && product.count_in_stock !== 0) {
+      //   results.push({  cartId,  success: false,  message: `الكمية المطلوبة أكبر من الحد الأقصى المتوفر من المنتج. المتوفر: ${product.count_in_stock}`  });
+      //   continue;
+      // }
 
       const updatedCartItem = await Cart.findByIdAndUpdate(  cartId,  { quantity: quantity },  { new: true } )
         .populate('familyId', 'userName email type').populate('productId', 'name price image description discount').populate('userId', 'userName email');
