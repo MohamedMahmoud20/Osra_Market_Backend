@@ -17,11 +17,11 @@ const userOrderSchema = mongoose.Schema(
     },
      address: {
       type: String,
-      unique: true,
+      default:"" ,
     },
      location: {
       type: String,
-      unique: true,
+      default:"" ,
     },
     ordersFamily: [{
       type: mongoose.Schema.Types.ObjectId,
