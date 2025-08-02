@@ -248,7 +248,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: "تنسيق المعرف غير صحيح" });
     }
 
-    return res.status(500).json({ message: "خطأ داخلي في الخادم" });
+    return res.status(500).json({ message: ` الخادم :  ${error}` });
   }
 });
 
