@@ -336,9 +336,9 @@ router.post("/forgetpassword", async (req, res) => {
 
   const user = await User.findOne({ email: email.trim().toLowerCase() });
 
-   if (user.type !== "client") {
-      return res.status(403).json({ message: "غير مسموح إلا للعميل فقط بتغيير كلمة المرور" });
-    }
+  //  if (user.type != "client") {
+  //     return res.status(403).json({ message: "غير مسموح إلا للعميل فقط بتغيير كلمة المرور" });
+  //   }
 
 
   if (user) {
