@@ -296,6 +296,14 @@ router.get('/user/:userId', async (req, res) => {
       }
 
 
+        if ( order.ordersFamily.length > 0 &&  order.ordersFamily.some(fam => fam.orderStatus === 'delivered') && order.orderStatus !== 'delivered' ) {
+       
+          await UserOrder.findByIdAndUpdate(order._id, { orderStatus: 'delivered' });
+          order.orderStatus = 'delivered'; // تحديث داخل الذاكرة أيضًا
+      }
+
+
+
     }
 
     // تقسيم الطلبات حسب الحالة
